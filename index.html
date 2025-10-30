@@ -9,25 +9,25 @@
     :root{
       --bg:#0b0b0c; --fg:#f2f2f2; --muted:#b6b6b6; --spinner:52px; --ring:4px;
     }
-    html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial}
-    /* Stage covers entire viewport */
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; position:fixed; width:100%; overflow:hidden; overscroll-behavior:non
+      /* Stage covers entire viewport */
     .stage{position:fixed; inset:0; overflow:hidden;}
-    .cat{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; user-select:none; -webkit-user-drag:none; pointer-events:none;}
+      .cat{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; user-select:none; -webkit-user-drag:none; pointer-events:none;}
 
-    /* Header microtext */
-    header{position:fixed; top:0; left:0; right:0; display:flex; justify-content:center; pointer-events:none; padding:.75rem 1rem; background:#000; z-index:3}
-    .micro{font-family:"Courier New",monospace; font-size:clamp(.9rem,2.7vw,1.05rem); color:#00ff00; text-align:center; max-width:72ch}
+      /* Header microtext */
+      header{position:fixed; top:0; left:0; right:0; display:flex; justify-content:center; pointer-events:none; padding:.75rem 1rem; background:#000; z-index:3}
+      .micro{font-family:"Courier New",monospace; font-size:clamp(.9rem,2.7vw,1.05rem); color:#00ff00; text-align:center; max-width:72ch}
 
-    /* Spinner */
-    .spinner{position:absolute; width:var(--spinner); height:var(--spinner); transform:translate(-50%,-50%); display:grid; place-items:center; z-index:2;
-      touch-action:none; cursor:grab}
-    .spinner.dragging{cursor:grabbing}
-    .ring{width:100%; height:100%; border-radius:999px; border:var(--ring) solid transparent; border-top-color:var(--fg); border-right-color:#d0d0d0; animation:spin 1s linear infinite}
-    @keyframes spin{to{transform:rotate(360deg)}}
+      /* Spinner */
+      .spinner{position:absolute; width:var(--spinner); height:var(--spinner); transform:translate(-50%,-50%); display:grid; place-items:center; z-index:2;
+        touch-action:none; cursor:grab}
+      .spinner.dragging{cursor:grabbing}
+      .ring{width:100%; height:100%; border-radius:999px; border:var(--ring) solid transparent; border-top-color:var(--fg); border-right-color:#d0d0d0; animation:spin 1s linear infinite}
+      @keyframes spin{to{transform:rotate(360deg)}}
 
-    /* Subtle footer hint visible only when editing is enabled (via CONFIG) */
-    .hint{position:fixed; left:50%; bottom:.8rem; transform:translateX(-50%); font-size:.85rem; color:#c8c8c8; opacity:.8; display:none}
-    .hint.show{display:block}
+      /* Subtle footer hint visible only when editing is enabled (via CONFIG) */
+      .hint{position:fixed; left:50%; bottom:.8rem; transform:translateX(-50%); font-size:.85rem; color:#c8c8c8; opacity:.8; display:none}
+      .hint.show{display:block}
   </style>
 </head>
 <body>
