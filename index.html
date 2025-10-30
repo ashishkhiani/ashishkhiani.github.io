@@ -1,21 +1,216 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ashish Khiani</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Loading Costume…</title>
   <style>
-    body {
-      overflow: hidden;
+    :root{
+      --fg:#eaeaea;
+      --muted:#a6a6a6;
+      --spinner-size:48px; /* change spinner size */
+    }
+    html,body{height:100%;margin:0}
+    body{
+      background:#000;
+      color:var(--fg);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+      overflow:hidden;
+    }
+
+    /* Full-screen image */
+    .bg{
+      position:fixed; inset:0;
+      width:100vw; height:100vh;
+      object-fit:cover; object-position:center;
+      user-select:none; -webkit-user-drag:none; pointer-events:none;
+      filter:saturate(1.05);
+    }
+
+    /* Header microtext */
+    header{
+      position:fixed; top:0; left:0; right:0;
+      padding:.8rem 1rem 1.1rem;
+      display:flex; align-items:center; justify-content:center; text-align:center;
+      background:linear-gradient(180deg, rgba(0,0,0,.65), rgba(0,0,0,.25), rgba(0,0,0,0));
+      z-index:3;
+    }
+    .micro{
+      font-size:clamp(.9rem, 2.6vw, 1.05rem);
+      color:var(--fg);
+      text-shadow:0 1px 2px rgba(0,0,0,.5);
+    }
+    .micro .sub{ color:var(--muted); }
+
+    /* Spinner */
+    .spinner{
+      position:fixed; /* relative to viewport == relative to image */
+      width:var(--spinner-size); height:var(--spinner-size);
+      transform:translate(-50%,-50%);
+      display:grid; place-items:center;
+      touch-action:none;
+      z-index:2;
+    }
+
+    .ring{
+      width:100%; height:100%;
+      border-radius:999px;
+      border:4px solid transparent;
+      border-top-color:var(--fg);
+      border-right-color:rgba(255,255,255,.6);
+      animation:spin 1s linear infinite;
+      box-shadow:0 0 0 1px rgba(255,255,255,.08) inset;
+    }
+    @keyframes spin{ to{ transform:rotate(360deg); } }
+
+    /* Drag cursor only when enabled on pointer devices */
+    @media (pointer:fine){
+      .spinner.draggable{ cursor:grab; }
+      .spinner.dragging{ cursor:grabbing; }
     }
   </style>
 </head>
-<body class="bg-gray-900 text-white flex items-center justify-center h-screen">
-<div class="text-center px-6">
-  <img src="https://media.licdn.com/dms/image/v2/D5603AQHENQIHoqVGrQ/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1688744545613?e=1745452800&v=beta&t=Dc9Lg3wo3Z3PY4WMw9wzrt2niszdtIWvWGn00lOBMzM" alt="Profile Picture" class="w-24 h-24 rounded-full mx-auto mb-4">
-  <h1 class="text-2xl font-bold">Ashish Khiani</h1>
-  <p class="text-gray-400">Software Engineer</p>
+<body>
+<img id="bg" class="bg" alt="Derpy cat" />
+<header><div id="micro" class="micro">She’s trying her best. <span class="sub">Loading costume…</span></div></header>
+
+<div id="spinner" class="spinner" aria-label="Loading">
+  <div class="ring" aria-hidden="true"></div>
 </div>
+
+<script>
+  /* ========= CONFIG (edit here) ========= */
+  const CONFIG = {
+    enableDrag: false,              // turn dragging on/off
+    preventImmediateRepeat: true,  // avoid showing same image twice in a row
+    spinnerDefaults: { x: 50, y: 60 }, // fallback position (percent of viewport)
+    microtexts: [
+      "She’s trying her best. <span class='sub'>Loading costume…</span>",
+      "Attempting fur-based compilation… <span class='sub'>(0%)</span>",
+      "Optimizing whiskers… <span class='sub'>Stand by</span>",
+      "Furball detected. <span class='sub'>Retrying…</span>",
+      "Every refresh makes her more powerful. <span class='sub'>Probably</span>"
+    ],
+    microtextIntervalMs: 2000      // rotate microtext every N ms (set 0 to disable)
+  };
+
+  // Add/rename your images here
+  const IMAGES = [
+    { src: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQS7aztDwqdfm_GYdST1bQs9C7I2k2uwKj5Mw&s", alt: "Derpy cat 1" },
+    { src: "https://www.sodiwseries.com/photos/team/1/0/5/2/4/e523ac0e011f4bacbcd92169ea488921.jpg", alt: "Derpy cat 2" },
+    { src: "https://external-preview.redd.it/Eh5MA4cVJPb1Uz8bSxuRsZgtFDRp_uWOixBfj_t1ZU4.png?format=pjpg&auto=webp&s=a0d473b8394633fb2c2e95a5bf9e54c4ba4a98cf", alt: "Derpy cat 3" },
+    { src: "https://i.pinimg.com/736x/b9/35/16/b935164e9580d6d6180cd2ef7b56d1a3.jpg", alt: "Derpy cat 4" }
+  ];
+
+  /* ========= RUNTIME ========= */
+  const bg = document.getElementById("bg");
+  const spinner = document.getElementById("spinner");
+  const micro = document.getElementById("micro");
+
+  let current = null;
+  let dragging = false;
+
+  function storageKeyFor(src){ return `spinnerPos:${src}`; }
+
+  function pickImage(){
+    const last = sessionStorage.getItem("lastImg");
+    const pool = (CONFIG.preventImmediateRepeat && last)
+            ? IMAGES.filter(i => i.src !== last)
+            : IMAGES.slice();
+    const chosen = pool[Math.floor(Math.random()*pool.length)];
+    sessionStorage.setItem("lastImg", chosen.src);
+    return chosen;
+  }
+
+  function setSpinnerPct(x,y){
+    const clamp = (v)=>Math.max(0,Math.min(100,v));
+    const xx = clamp(x), yy = clamp(y);
+    spinner.style.left = `${xx}vw`;
+    spinner.style.top  = `${yy}vh`;
+    // store as percent-of-viewport for consistency
+    spinner.dataset.x = xx.toFixed(2);
+    spinner.dataset.y = yy.toFixed(2);
+  }
+
+  function loadSavedPosition(src){
+    const raw = localStorage.getItem(storageKeyFor(src));
+    if(!raw) return null;
+    try{ return JSON.parse(raw); }catch{ return null; }
+  }
+
+  function savePositionFor(src, pos){
+    localStorage.setItem(storageKeyFor(src), JSON.stringify(pos));
+  }
+
+  function load(){
+    current = pickImage();
+    bg.src = current.src;
+    bg.alt = current.alt || "Derpy cat";
+
+    const saved = loadSavedPosition(current.src);
+    const pos = saved || CONFIG.spinnerDefaults;
+    setSpinnerPct(pos.x, pos.y);
+
+    // mark spinner draggable state for cursor style
+    spinner.classList.toggle("draggable", !!CONFIG.enableDrag);
+  }
+  load();
+
+  /* Drag logic (mouse + touch) */
+  function getPoint(e){
+    if(e.touches && e.touches[0]) return { x:e.touches[0].clientX, y:e.touches[0].clientY };
+    return { x:e.clientX, y:e.clientY };
+  }
+  function toPctOfViewport(pt){
+    const vw = Math.max(document.documentElement.clientWidth,  window.innerWidth  || 0);
+    const vh = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
+    return { x: (pt.x / vw)*100, y: (pt.y / vh)*100 };
+  }
+  function startDrag(e){
+    if(!CONFIG.enableDrag) return;
+    dragging = true;
+    spinner.classList.add("dragging");
+    moveDrag(e);
+    e.preventDefault();
+  }
+  function moveDrag(e){
+    if(!dragging) return;
+    const pt = getPoint(e);
+    const pct = toPctOfViewport(pt);
+    setSpinnerPct(pct.x, pct.y);
+  }
+  function endDrag(){
+    if(!dragging) return;
+    dragging = false;
+    spinner.classList.remove("dragging");
+    // save per image
+    const x = parseFloat(spinner.dataset.x || "50");
+    const y = parseFloat(spinner.dataset.y || "50");
+    savePositionFor(current.src, { x, y });
+  }
+
+  spinner.addEventListener("mousedown", startDrag);
+  window.addEventListener("mousemove", moveDrag);
+  window.addEventListener("mouseup", endDrag);
+
+  spinner.addEventListener("touchstart", startDrag, {passive:false});
+  window.addEventListener("touchmove", moveDrag, {passive:false});
+  window.addEventListener("touchend", endDrag);
+
+  /* Microtext rotation */
+  (function rotateMicro(){
+    if(!CONFIG.microtextIntervalMs || CONFIG.microtexts.length === 0) {
+      micro.innerHTML = CONFIG.microtexts[0] || "Loading…";
+      return;
+    }
+    let i = 0;
+    micro.innerHTML = CONFIG.microtexts[i];
+    setInterval(()=>{
+      i = (i+1) % CONFIG.microtexts.length;
+      micro.innerHTML = CONFIG.microtexts[i];
+    }, CONFIG.microtextIntervalMs);
+  })();
+</script>
 </body>
 </html>
