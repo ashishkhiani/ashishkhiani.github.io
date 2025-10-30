@@ -2,217 +2,160 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Loading Costume…</title>
   <style>
+    /* ===== Mobile‑first, full‑screen image with overlay header & draggable spinner ===== */
     :root{
-      --fg:#eaeaea;
-      --muted:#a6a6a6;
-      --spinner-size:48px; /* change spinner size */
+      --bg:#0b0b0c; --fg:#f2f2f2; --muted:#b6b6b6; --spinner:52px; --ring:4px;
     }
-    html,body{height:100%;margin:0}
-    body{
-      background:#000;
-      color:var(--fg);
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-      -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
-      overflow:hidden;
-    }
-
-    /* Full-screen image */
-    .bg{
-      position:fixed; inset:0;
-      width:100vw; height:100vh;
-      object-fit:cover; object-position:center;
-      user-select:none; -webkit-user-drag:none; pointer-events:none;
-      filter:saturate(1.05);
-    }
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial}
+    /* Stage covers entire viewport */
+    .stage{position:fixed; inset:0; overflow:hidden;}
+    .cat{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; user-select:none; -webkit-user-drag:none; pointer-events:none;}
 
     /* Header microtext */
-    header{
-      position:fixed; top:0; left:0; right:0;
-      padding:.8rem 1rem 1.1rem;
-      display:flex; align-items:center; justify-content:center; text-align:center;
-      background:linear-gradient(180deg, rgba(0,0,0,.65), rgba(0,0,0,.25), rgba(0,0,0,0));
-      z-index:3;
-    }
-    .micro{
-      font-size:clamp(.9rem, 2.6vw, 1.05rem);
-      color:var(--fg);
-      text-shadow:0 1px 2px rgba(0,0,0,.5);
-    }
-    .micro .sub{ color:var(--muted); }
+    header{position:fixed; top:0; left:0; right:0; display:flex; justify-content:center; pointer-events:none;
+      padding:.75rem 1rem; background:linear-gradient(180deg,rgba(0,0,0,.55),rgba(0,0,0,0)); z-index:3}
+    .micro{font-size:clamp(.9rem, 2.7vw, 1.05rem); color:var(--muted); text-align:center; max-width:72ch}
 
     /* Spinner */
-    .spinner{
-      position:fixed; /* relative to viewport == relative to image */
-      width:var(--spinner-size); height:var(--spinner-size);
-      transform:translate(-50%,-50%);
-      display:grid; place-items:center;
-      touch-action:none;
-      z-index:2;
-    }
+    .spinner{position:absolute; width:var(--spinner); height:var(--spinner); transform:translate(-50%,-50%); display:grid; place-items:center; z-index:2;
+      touch-action:none; cursor:grab}
+    .spinner.dragging{cursor:grabbing}
+    .ring{width:100%; height:100%; border-radius:999px; border:var(--ring) solid transparent; border-top-color:var(--fg); border-right-color:#d0d0d0; animation:spin 1s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
 
-    .ring{
-      width:100%; height:100%;
-      border-radius:999px;
-      border:4px solid transparent;
-      border-top-color:var(--fg);
-      border-right-color:rgba(255,255,255,.6);
-      animation:spin 1s linear infinite;
-      box-shadow:0 0 0 1px rgba(255,255,255,.08) inset;
-    }
-    @keyframes spin{ to{ transform:rotate(360deg); } }
-
-    /* Drag cursor only when enabled on pointer devices */
-    @media (pointer:fine){
-      .spinner.draggable{ cursor:grab; }
-      .spinner.dragging{ cursor:grabbing; }
-    }
+    /* Subtle footer hint visible only when editing is enabled (via CONFIG) */
+    .hint{position:fixed; left:50%; bottom:.8rem; transform:translateX(-50%); font-size:.85rem; color:#c8c8c8; opacity:.8; display:none}
+    .hint.show{display:block}
   </style>
 </head>
 <body>
-<img id="bg" class="bg" alt="Derpy cat" />
-<header><div id="micro" class="micro">She’s trying her best. <span class="sub">Loading costume…</span></div></header>
-
-<div id="spinner" class="spinner" aria-label="Loading">
-  <div class="ring" aria-hidden="true"></div>
-</div>
+<header><div id="micro" class="micro">She’s trying her best. Please be patient.</div></header>
+<main class="stage" id="stage" aria-label="Derpy cat loading screen">
+  <img id="cat" class="cat" alt="Derpy cat" />
+  <div id="spinner" class="spinner" role="img" aria-label="Loading">
+    <div class="ring" aria-hidden="true"></div>
+  </div>
+</main>
+<div id="hint" class="hint">Drag to place spinner · position auto-saves for this photo</div>
 
 <script>
-  /* ========= CONFIG (edit here) ========= */
-  const CONFIG = {
-    enableDrag: true,              // turn dragging on/off
-    preventImmediateRepeat: true,  // avoid showing same image twice in a row
-    spinnerDefaults: { x: 50, y: 60 }, // fallback position (percent of viewport)
-    microtexts: [
-      "She’s trying her best. <span class='sub'>Loading costume…</span>",
-      "Attempting fur-based compilation… <span class='sub'>(0%)</span>",
-      "Optimizing whiskers… <span class='sub'>Stand by</span>",
-      "Furball detected. <span class='sub'>Retrying…</span>",
-      "Every refresh makes her more powerful. <span class='sub'>Probably</span>"
-    ],
-    microtextIntervalMs: 2000      // rotate microtext every N ms (set 0 to disable)
-  };
-
-  // Add/rename your images here
+  /* =====================
+     CONFIG — edit only this
+     ===================== */
   const IMAGES = [
-    { src: "images/cat_1.jpeg", alt: "Derpy cat 1" },
-    { src: "images/cat_2.jpeg", alt: "Derpy cat 2" },
-    { src: "images/cat_3.jpeg", alt: "Derpy cat 3" },
-    { src: "images/cat_4.jpeg", alt: "Derpy cat 4" },
-    { src: "images/cat_5.jpeg", alt: "Derpy cat 5" },
-    { src: "images/cat_6.jpeg", alt: "Derpy cat 6" },
+    // Add your files under /images and list them here with default spinner % coords
+    { src: "images/cat_1.jpeg", alt: "Derpy cat 1", spinner:{ x:12.61, y:53.56 } },
+    { src: "images/cat_2.jpeg", alt: "Derpy cat 2", spinner:{ x:40, y:62 } },
+    { src: "images/cat_3.jpeg", alt: "Derpy cat 3", spinner:{ x:48.14, y:49.94 } },
+    { src: "images/cat_4.jpeg", alt: "Derpy cat 4", spinner:{ x:66.85, y:24.27 } },
+    { src: "images/cat_5.jpeg", alt: "Derpy cat 5", spinner:{ x:39.28, y:42.58 } },
+    { src: "images/cat_6.jpeg", alt: "Derpy cat 6", spinner:{ x:26.86, y:79.24 } },
   ];
 
-  /* ========= RUNTIME ========= */
-  const bg = document.getElementById("bg");
-  const spinner = document.getElementById("spinner");
-  const micro = document.getElementById("micro");
+  const CONFIG = {
+    draggable: true,             // enable/disable dragging globally (no UI)
+    preventImmediateRepeat: true,// avoid same image twice in a row
+    microtexts: [
+      "She’s trying her best. Please be patient.",
+      "Attempting fur-based costume compilation…",
+      "Optimizing whiskers (0% complete).",
+      "Engaging purr protocol…",
+      "Furball detected. Retrying…",
+      "Every refresh makes her more powerful.",
+    ],
+    microtextRotateMs: 5000,     // 0 to disable rotation
+    defaultSpinner:{ x:50, y:50 } // fallback if image entry omits spinner
+  };
 
-  let current = null;
+  /* =====================
+     RUNTIME — no need to edit
+     ===================== */
+  const stage = document.getElementById('stage');
+  const imgEl = document.getElementById('cat');
+  const spinner = document.getElementById('spinner');
+  const micro = document.getElementById('micro');
+  const hint = document.getElementById('hint');
+
+  let currentImage = null;
   let dragging = false;
 
-  function storageKeyFor(src){ return `spinnerPos:${src}`; }
+  function storageKey(src){ return `spinnerPos:${src}`; }
 
   function pickImage(){
-    const last = sessionStorage.getItem("lastImg");
+    const last = sessionStorage.getItem('lastImg');
     const pool = (CONFIG.preventImmediateRepeat && last)
-            ? IMAGES.filter(i => i.src !== last)
-            : IMAGES.slice();
-    const chosen = pool[Math.floor(Math.random()*pool.length)];
-    sessionStorage.setItem("lastImg", chosen.src);
-    return chosen;
-  }
-
-  function setSpinnerPct(x,y){
-    const clamp = (v)=>Math.max(0,Math.min(100,v));
-    const xx = clamp(x), yy = clamp(y);
-    spinner.style.left = `${xx}vw`;
-    spinner.style.top  = `${yy}vh`;
-    // store as percent-of-viewport for consistency
-    spinner.dataset.x = xx.toFixed(2);
-    spinner.dataset.y = yy.toFixed(2);
-  }
-
-  function loadSavedPosition(src){
-    const raw = localStorage.getItem(storageKeyFor(src));
-    if(!raw) return null;
-    try{ return JSON.parse(raw); }catch{ return null; }
-  }
-
-  function savePositionFor(src, pos){
-    localStorage.setItem(storageKeyFor(src), JSON.stringify(pos));
+            ? IMAGES.filter(i => i.src !== last) : IMAGES.slice();
+    const choice = pool[Math.floor(Math.random()*pool.length)];
+    sessionStorage.setItem('lastImg', choice.src);
+    return choice;
   }
 
   function load(){
-    current = pickImage();
-    bg.src = current.src;
-    bg.alt = current.alt || "Derpy cat";
+    currentImage = pickImage();
+    imgEl.src = currentImage.src;
+    imgEl.alt = currentImage.alt || 'Derpy cat';
 
-    const saved = loadSavedPosition(current.src);
-    const pos = saved || CONFIG.spinnerDefaults;
-    setSpinnerPct(pos.x, pos.y);
+    // spinner position: saved > per-image default > global default
+    const saved = localStorage.getItem(storageKey(currentImage.src));
+    let pos = currentImage.spinner || CONFIG.defaultSpinner;
+    if(saved){ try{ pos = JSON.parse(saved); }catch(e){} }
+    setSpinner(pos.x, pos.y);
 
-    // mark spinner draggable state for cursor style
-    spinner.classList.toggle("draggable", !!CONFIG.enableDrag);
-  }
-  load();
-
-  /* Drag logic (mouse + touch) */
-  function getPoint(e){
-    if(e.touches && e.touches[0]) return { x:e.touches[0].clientX, y:e.touches[0].clientY };
-    return { x:e.clientX, y:e.clientY };
-  }
-  function toPctOfViewport(pt){
-    const vw = Math.max(document.documentElement.clientWidth,  window.innerWidth  || 0);
-    const vh = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
-    return { x: (pt.x / vw)*100, y: (pt.y / vh)*100 };
-  }
-  function startDrag(e){
-    if(!CONFIG.enableDrag) return;
-    dragging = true;
-    spinner.classList.add("dragging");
-    moveDrag(e);
-    e.preventDefault();
-  }
-  function moveDrag(e){
-    if(!dragging) return;
-    const pt = getPoint(e);
-    const pct = toPctOfViewport(pt);
-    setSpinnerPct(pct.x, pct.y);
-  }
-  function endDrag(){
-    if(!dragging) return;
-    dragging = false;
-    spinner.classList.remove("dragging");
-    // save per image
-    const x = parseFloat(spinner.dataset.x || "50");
-    const y = parseFloat(spinner.dataset.y || "50");
-    savePositionFor(current.src, { x, y });
-  }
-
-  spinner.addEventListener("mousedown", startDrag);
-  window.addEventListener("mousemove", moveDrag);
-  window.addEventListener("mouseup", endDrag);
-
-  spinner.addEventListener("touchstart", startDrag, {passive:false});
-  window.addEventListener("touchmove", moveDrag, {passive:false});
-  window.addEventListener("touchend", endDrag);
-
-  /* Microtext rotation */
-  (function rotateMicro(){
-    if(!CONFIG.microtextIntervalMs || CONFIG.microtexts.length === 0) {
-      micro.innerHTML = CONFIG.microtexts[0] || "Loading…";
-      return;
+    // header microtext
+    if(Array.isArray(CONFIG.microtexts) && CONFIG.microtexts.length){
+      let i = Math.floor(Math.random()*CONFIG.microtexts.length);
+      micro.textContent = CONFIG.microtexts[i];
+      if(CONFIG.microtextRotateMs > 0){
+        setInterval(()=>{
+          i = (i+1)%CONFIG.microtexts.length;
+          micro.textContent = CONFIG.microtexts[i];
+        }, CONFIG.microtextRotateMs);
+      }
     }
-    let i = 0;
-    micro.innerHTML = CONFIG.microtexts[i];
-    setInterval(()=>{
-      i = (i+1) % CONFIG.microtexts.length;
-      micro.innerHTML = CONFIG.microtexts[i];
-    }, CONFIG.microtextIntervalMs);
-  })();
+
+    // hint visibility only if draggable is enabled
+    hint.classList.toggle('show', !!CONFIG.draggable);
+  }
+
+  function setSpinner(xPct, yPct){
+    xPct = Math.max(0, Math.min(100, xPct));
+    yPct = Math.max(0, Math.min(100, yPct));
+    spinner.style.left = xPct + '%';
+    spinner.style.top  = yPct + '%';
+    spinner.dataset.x = xPct.toFixed(2);
+    spinner.dataset.y = yPct.toFixed(2);
+  }
+
+  function saveSpinner(){
+    if(!currentImage) return;
+    const x = parseFloat(spinner.dataset.x || '50');
+    const y = parseFloat(spinner.dataset.y || '50');
+    localStorage.setItem(storageKey(currentImage.src), JSON.stringify({x,y}));
+  }
+
+  /* Drag handlers (mouse + touch) — enabled only when CONFIG.draggable */
+  function stagePointToPercent(clientX, clientY){
+    const r = stage.getBoundingClientRect();
+    return { x: ((clientX - r.left)/r.width)*100, y: ((clientY - r.top)/r.height)*100 };
+  }
+  function startDrag(e){ if(!CONFIG.draggable) return; dragging=true; spinner.classList.add('dragging'); moveDrag(e); e.preventDefault(); }
+  function moveDrag(e){ if(!dragging || !CONFIG.draggable) return; const t=e.touches?e.touches[0]:e; const {x,y}=stagePointToPercent(t.clientX,t.clientY); setSpinner(x,y); }
+  function endDrag(){ if(!dragging) return; dragging=false; spinner.classList.remove('dragging'); if(CONFIG.draggable) saveSpinner(); }
+
+  // mouse
+  spinner.addEventListener('mousedown', startDrag);
+  window.addEventListener('mousemove', moveDrag);
+  window.addEventListener('mouseup', endDrag);
+  // touch
+  spinner.addEventListener('touchstart', startDrag, {passive:false});
+  window.addEventListener('touchmove', moveDrag, {passive:false});
+  window.addEventListener('touchend', endDrag);
+
+  // init
+  load();
 </script>
 </body>
 </html>
